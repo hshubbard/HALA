@@ -10,12 +10,12 @@ fragility, and performance inefficiencies- without executing any workloads.
 ## Version History
 
 ### v1.0 (current)
-- **HAL Call Parser** — canonical IR builder with op-table, vendor alias resolution (Vulkan, D3D12, CUDA), and automatic resource lifetime tracking
-- **Three analysis passes** — resource contention, fragility / undefined behaviour, performance inefficiency
-- **14 checks across 3 passes** — RC-01..04, FR-01..05, PE-01..05
-- **CLI** — `analyze`, `diff`, `report` commands; CI-friendly exit codes
-- **GUI** — Tkinter frontend; accepts raw trace JSON directly (runs engine in background thread) or pre-computed result JSON
-- **Structured JSON output** — machine-readable results for downstream tooling
+- **HAL Call Parser**: canonical IR builder with op-table, vendor alias resolution (Vulkan, D3D12, CUDA), and automatic resource lifetime tracking
+- **Three analysis passes**: resource contention, fragility / undefined behaviour, performance inefficiency
+- **14 checks across 3 passes**: RC-01..04, FR-01..05, PE-01..05
+- **CLI**: `analyze`, `diff`, `report` commands; CI-friendly exit codes
+- **GUI**: Tkinter frontend; accepts raw trace JSON directly (runs engine in background thread) or pre-computed result JSON
+- **Structured JSON output**: machine-readable results for downstream tooling
 
 ---
 
@@ -53,7 +53,7 @@ HALA/
 ├── hal_analyzer/
 │   ├── core/
 │   │   ├── ir.py               # IR data structures
-│   │   ├── parser.py           # HAL call parser → IR builder
+│   │   ├── parser.py           # HAL call parser -> IR builder
 │   │   ├── engine.py           # Public API: AnalysisEngine, AnalysisResult, DiffResult
 │   │   ├── reporter.py         # Text and JSON rendering (no analysis logic)
 │   │   └── passes/
@@ -99,7 +99,7 @@ operation.
 
 | Field        | Type          | Description                                        |
 |--------------|---------------|----------------------------------------------------|
-| `op`         | string        | Operation name — canonical or vendor alias         |
+| `op`         | string        | Operation name: canonical or vendor alias         |
 | `resource`   | string        | Primary resource name (auto-named if omitted)      |
 | `size`       | int           | Allocation size in bytes                           |
 | `memory`     | string        | `GPU_LOCAL`, `CPU_VISIBLE`, `SHARED`               |
@@ -132,10 +132,10 @@ The parser lifts each raw call into an `IRNode` and builds an `IRTrace`:
 
 ```
 IRTrace
-  nodes        : List[IRNode]              — ordered call sequence
-  resources    : Dict[str, Resource]       — all named resources
-  lifetimes    : Dict[str, ResourceLifetime] — alloc/free/map intervals
-  dependencies : List[Dependency]          — signal→wait ordering edges
+  nodes        : List[IRNode]             : ordered call sequence
+  resources    : Dict[str, Resource]      : all named resources
+  lifetimes    : Dict[str, ResourceLifetime]: alloc/free/map intervals
+  dependencies : List[Dependency]         : signal->wait ordering edges
   source_arch  : Optional[str]
 ```
 
@@ -143,14 +143,14 @@ Each `IRNode` carries:
 
 ```
 IRNode
-  index          : int                — position in trace
-  op             : str                — canonical UPPER_SNAKE_CASE name
-  category       : OpCategory         — ALLOC / FREE / MAP / SUBMIT / SYNC / ...
-  blocking       : BlockingKind       — BLOCKING / NON_BLOCKING / CONDITIONAL
+  index          : int               : position in trace
+  op             : str               : canonical UPPER_SNAKE_CASE name
+  category       : OpCategory        : ALLOC / FREE / MAP / SUBMIT / SYNC / ...
+  blocking       : BlockingKind      : BLOCKING / NON_BLOCKING / CONDITIONAL
   resources_read : List[Resource]
   resources_write: List[Resource]
   sync_point     : bool
-  timeout_ms     : Optional[int]      — -1 = infinite
+  timeout_ms     : Optional[int]     : -1 = infinite
   queue          : Optional[str]
   arch_hints     : Set[str]
 ```
@@ -166,75 +166,75 @@ IR is immutable after construction. All passes read it; none modify it.
 Rules applied independently; all matches are reported.
 
 ```
-RC-01 — Long-lived exclusive resource ownership
+RC-01: Long-lived exclusive resource ownership
   IF lifetime > 20 ops
   AND at least one SUBMIT_QUEUE occurs during the lifetime
-  → severity: MEDIUM (< 50 ops) or HIGH (>= 50 ops)
+  -> severity: MEDIUM (< 50 ops) or HIGH (>= 50 ops)
 
-RC-02 — Serialised SUBMIT→WAIT pattern
+RC-02: Serialised SUBMIT->WAIT pattern
   IF SUBMIT_QUEUE is followed within 3 ops by a blocking WAIT
   AND this pattern repeats 2+ times
-  → severity: HIGH
+  -> severity: HIGH
 
-RC-03 — Resource never freed in trace
+RC-03: Resource never freed in trace
   IF resource is allocated but free_index is None at trace end
-  → severity: LOW (small), MEDIUM (> 0 bytes), HIGH (>= 64 MiB)
+  -> severity: LOW (small), MEDIUM (> 0 bytes), HIGH (>= 64 MiB)
 
-RC-04 — Queue starvation
+RC-04: Queue starvation
   IF multiple queues are referenced
   AND >= 85% of submissions go to one queue
-  → severity: MEDIUM
+  -> severity: MEDIUM
 ```
 
 ### Fragility / Portability Pass
 
 ```
-FR-01 — Implicit ordering: CPU access after GPU submit without wait
+FR-01: Implicit ordering: CPU access after GPU submit without wait
   IF SUBMIT_QUEUE is followed by FREE or MAP of a GPU-written resource
   AND no blocking WAIT intervenes
-  → severity: CRITICAL
+  -> severity: CRITICAL
 
-FR-02 — CPU MAP of GPU_LOCAL memory
+FR-02: CPU MAP of GPU_LOCAL memory
   IF MAP_BUFFER targets a resource with memory = GPU_LOCAL
-  → severity: HIGH
+  -> severity: HIGH
 
-FR-03 — Missing barrier before resource reuse
+FR-03: Missing barrier before resource reuse
   IF a resource is written then read by a GPU op
   AND no PIPELINE_BARRIER or MEMORY_BARRIER intervenes
-  → severity: HIGH
+  -> severity: HIGH
 
-FR-04 — Architecture-specific code path
+FR-04: Architecture-specific code path
   IF an IRNode carries non-empty arch_hints
-  → severity: MEDIUM
+  -> severity: MEDIUM
 
-FR-05 — Infinite timeout on sync primitive
+FR-05: Infinite timeout on sync primitive
   IF WAIT_FENCE or WAIT_SEMAPHORE has timeout_ms = -1
-  → severity: MEDIUM
+  -> severity: MEDIUM
 ```
 
 ### Performance Inefficiency Pass
 
 ```
-PE-01 — Redundant synchronisation
+PE-01: Redundant synchronisation
   IF two sync nodes are within 2 ops of each other
   AND no GPU work (DRAW / COMPUTE / TRANSFER / SUBMIT) is between them
-  → severity: MEDIUM
+  -> severity: MEDIUM
 
-PE-02 — Excessive map/unmap churn
+PE-02: Excessive map/unmap churn
   IF a resource has >= 5 map/unmap cycles in its lifetime
-  → severity: MEDIUM (< 10 cycles) or HIGH (>= 10 cycles)
+  -> severity: MEDIUM (< 10 cycles) or HIGH (>= 10 cycles)
 
-PE-03 — Small repeated allocations
+PE-03: Small repeated allocations
   IF >= 4 allocations are each < 256 KiB
-  → severity: MEDIUM
+  -> severity: MEDIUM
 
-PE-04 — Blocking readback in hot path
+PE-04: Blocking readback in hot path
   IF a blocking READBACK or QUERY appears between two SUBMIT_QUEUE calls
-  → severity: HIGH
+  -> severity: HIGH
 
-PE-05 — Staging buffer persistently mapped across submission
+PE-05: Staging buffer persistently mapped across submission
   IF a CPU_VISIBLE resource is mapped and not unmapped before a SUBMIT_QUEUE
-  → severity: LOW
+  -> severity: LOW
 ```
 
 ---
@@ -255,8 +255,8 @@ python halanalyze.py report RESULT [--format text|json] [--output FILE]
 ```
 
 **Exit codes:**
-- `0` — no HIGH or CRITICAL findings
-- `1` — HIGH or CRITICAL findings present, or parse/IO error
+- `0`: no HIGH or CRITICAL findings
+- `1`: HIGH or CRITICAL findings present, or parse/IO error
 
 The exit code makes `halanalyze analyze` drop-in usable in CI pipelines.
 
@@ -369,7 +369,7 @@ pass through as `OTHER` category ops and will not trigger most checks.
    and independently testable. A failing pass cannot corrupt another pass
    or the IR.
 
-2. **Traceable findings.** Every `Finding` carries `related_nodes` — the
+2. **Traceable findings.** Every `Finding` carries `related_nodes`: the
    exact IR node indices that triggered it. Nothing is inferred globally
    without a concrete source location.
 
@@ -387,6 +387,6 @@ pass through as `OTHER` category ops and will not trigger most checks.
 | Requirement | Notes |
 |-------------|-------|
 | Python 3.10+ | Uses `match`-free dataclasses and `str \| Path` unions |
-| `tkinter` | GUI only — included with standard CPython on all platforms |
+| `tkinter` | GUI only: included with standard CPython on all platforms |
 
 No third-party packages required.
