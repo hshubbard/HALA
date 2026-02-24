@@ -1,0 +1,56 @@
+{
+  "_comment": "Trace with fragility issues: GPU_LOCAL mapping, missing barriers, arch hints, implicit ordering",
+  "arch": "turing",
+  "metadata": {
+    "app": "fragile_compute",
+    "description": "Compute pass with several portability bugs"
+  },
+  "calls": [
+    {
+      "op": "ALLOC_BUFFER",
+      "resource": "compute_buf",
+      "size": 134217728,
+      "memory": "GPU_LOCAL",
+      "cpu_visible": false
+    },
+    {
+      "op": "ALLOC_BUFFER",
+      "resource": "result_buf",
+      "size": 8388608,
+      "memory": "GPU_LOCAL",
+      "cpu_visible": false
+    },
+    {
+      "op": "DISPATCH",
+      "queue": "compute",
+      "reads": ["compute_buf"],
+      "writes": ["result_buf"],
+      "arch": ["turing", "ampere"]
+    },
+    {
+      "op": "DISPATCH",
+      "queue": "compute",
+      "reads": ["result_buf"],
+      "writes": ["compute_buf"],
+      "arch": ["turing"]
+    },
+    {
+      "op": "MAP_BUFFER",
+      "resource": "compute_buf",
+      "cpu_visible": false
+    },
+    {
+      "op": "SUBMIT_QUEUE",
+      "queue": "compute",
+      "writes": ["result_buf"]
+    },
+    {
+      "op": "FREE_BUFFER",
+      "resource": "result_buf"
+    },
+    {
+      "op": "FREE_BUFFER",
+      "resource": "compute_buf"
+    }
+  ]
+}

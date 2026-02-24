@@ -1,0 +1,487 @@
+{
+  "source_path": "examples/trace_clean.json",
+  "arch_hint": "ampere",
+  "summary": {
+    "total_findings": 3,
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 0,
+    "info": 0
+  },
+  "findings": [
+    {
+      "pass": "FragilityPass",
+      "category": "fragility",
+      "severity": "high",
+      "title": "Missing barrier: 'vbo' written then read without synchronisation",
+      "explanation": "Resource 'vbo' written at node [8] COPY_BUFFER is read at node [10] SUBMIT_QUEUE without an intervening PIPELINE_BARRIER or MEMORY_BARRIER. Some drivers insert implicit barriers for render targets, but this is vendor-specific. On Vulkan, Metal, and D3D12, explicit barriers are required for correctness. This pattern may work on one vendor and silently produce incorrect results on another.",
+      "related_nodes": [
+        8,
+        10
+      ],
+      "suggestion": "Insert an explicit PIPELINE_BARRIER / MEMORY_BARRIER with appropriate src/dst stage and access masks between the write and subsequent read.",
+      "metadata": {
+        "resource": "vbo",
+        "gap_ops": 2
+      }
+    },
+    {
+      "pass": "PerformancePass",
+      "category": "performance",
+      "severity": "medium",
+      "title": "Redundant sync: SIGNAL_FENCE \u2192 WAIT_FENCE with no GPU work between",
+      "explanation": "Nodes [11] SIGNAL_FENCE and [12] WAIT_FENCE are both synchronisation operations with no GPU work in between (gap: 1 ops). The second sync is redundant: once the first wait completes, the GPU is already idle for the relevant scope. Redundant sync ops add CPU overhead (syscall latency) and interfere with GPU scheduling.",
+      "related_nodes": [
+        11,
+        12
+      ],
+      "suggestion": "Remove the redundant sync operation. If both syncs guard different resources, consider merging them into a single, broader fence signal.",
+      "metadata": {
+        "first_sync": 11,
+        "second_sync": 12,
+        "gap": 1
+      }
+    },
+    {
+      "pass": "PerformancePass",
+      "category": "performance",
+      "severity": "medium",
+      "title": "Redundant sync: SIGNAL_FENCE \u2192 WAIT_FENCE with no GPU work between",
+      "explanation": "Nodes [13] SIGNAL_FENCE and [14] WAIT_FENCE are both synchronisation operations with no GPU work in between (gap: 1 ops). The second sync is redundant: once the first wait completes, the GPU is already idle for the relevant scope. Redundant sync ops add CPU overhead (syscall latency) and interfere with GPU scheduling.",
+      "related_nodes": [
+        13,
+        14
+      ],
+      "suggestion": "Remove the redundant sync operation. If both syncs guard different resources, consider merging them into a single, broader fence signal.",
+      "metadata": {
+        "first_sync": 13,
+        "second_sync": 14,
+        "gap": 1
+      }
+    }
+  ],
+  "trace": {
+    "source_arch": "ampere",
+    "metadata": {
+      "app": "good_renderer",
+      "description": "Double-buffered, properly synchronised, no leaks"
+    },
+    "resources": {
+      "vbo": {
+        "name": "vbo",
+        "kind": "buffer",
+        "memory": "GPU_LOCAL",
+        "size_bytes": 67108864,
+        "cpu_visible": false,
+        "metadata": {}
+      },
+      "staging": {
+        "name": "staging",
+        "kind": "buffer",
+        "memory": "CPU_VISIBLE",
+        "size_bytes": 67108864,
+        "cpu_visible": true,
+        "metadata": {}
+      },
+      "buffer_0": {
+        "name": "buffer_0",
+        "kind": "buffer",
+        "memory": "UNKNOWN",
+        "size_bytes": 0,
+        "cpu_visible": false,
+        "metadata": {}
+      },
+      "fence_frame0": {
+        "name": "fence_frame0",
+        "kind": "fence",
+        "memory": "UNKNOWN",
+        "size_bytes": 0,
+        "cpu_visible": false,
+        "metadata": {}
+      },
+      "queue_0": {
+        "name": "queue_0",
+        "kind": "queue",
+        "memory": "UNKNOWN",
+        "size_bytes": 0,
+        "cpu_visible": false,
+        "metadata": {}
+      },
+      "buffer_1": {
+        "name": "buffer_1",
+        "kind": "buffer",
+        "memory": "UNKNOWN",
+        "size_bytes": 0,
+        "cpu_visible": false,
+        "metadata": {}
+      },
+      "fence_frame1": {
+        "name": "fence_frame1",
+        "kind": "fence",
+        "memory": "UNKNOWN",
+        "size_bytes": 0,
+        "cpu_visible": false,
+        "metadata": {}
+      },
+      "queue_1": {
+        "name": "queue_1",
+        "kind": "queue",
+        "memory": "UNKNOWN",
+        "size_bytes": 0,
+        "cpu_visible": false,
+        "metadata": {}
+      }
+    },
+    "nodes": [
+      {
+        "index": 0,
+        "op": "ALLOC_BUFFER",
+        "category": "alloc",
+        "blocking": "non_blocking",
+        "resources_read": [],
+        "resources_write": [
+          "vbo"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 1,
+        "op": "ALLOC_BUFFER",
+        "category": "alloc",
+        "blocking": "non_blocking",
+        "resources_read": [],
+        "resources_write": [
+          "staging"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 2,
+        "op": "MAP_BUFFER",
+        "category": "map",
+        "blocking": "non_blocking",
+        "resources_read": [],
+        "resources_write": [
+          "staging"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 3,
+        "op": "COPY_BUFFER",
+        "category": "transfer",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "buffer_0",
+          "staging"
+        ],
+        "resources_write": [
+          "vbo"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 4,
+        "op": "UNMAP_BUFFER",
+        "category": "unmap",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "staging"
+        ],
+        "resources_write": [],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 5,
+        "op": "PIPELINE_BARRIER",
+        "category": "barrier",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "vbo"
+        ],
+        "resources_write": [
+          "vbo"
+        ],
+        "sync_point": true,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 6,
+        "op": "CREATE_FENCE",
+        "category": "alloc",
+        "blocking": "non_blocking",
+        "resources_read": [],
+        "resources_write": [
+          "fence_frame0"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 7,
+        "op": "SUBMIT_QUEUE",
+        "category": "submit",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "queue_0",
+          "vbo"
+        ],
+        "resources_write": [
+          "fence_frame0"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": "graphics",
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 8,
+        "op": "COPY_BUFFER",
+        "category": "transfer",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "buffer_1",
+          "staging"
+        ],
+        "resources_write": [
+          "vbo"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 9,
+        "op": "CREATE_FENCE",
+        "category": "alloc",
+        "blocking": "non_blocking",
+        "resources_read": [],
+        "resources_write": [
+          "fence_frame1"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 10,
+        "op": "SUBMIT_QUEUE",
+        "category": "submit",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "queue_1",
+          "vbo"
+        ],
+        "resources_write": [
+          "fence_frame1"
+        ],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": "graphics",
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 11,
+        "op": "SIGNAL_FENCE",
+        "category": "sync",
+        "blocking": "non_blocking",
+        "resources_read": [],
+        "resources_write": [
+          "fence_frame0"
+        ],
+        "sync_point": true,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 12,
+        "op": "WAIT_FENCE",
+        "category": "sync",
+        "blocking": "blocking",
+        "resources_read": [],
+        "resources_write": [
+          "fence_frame0"
+        ],
+        "sync_point": true,
+        "timeout_ms": 5000,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 13,
+        "op": "SIGNAL_FENCE",
+        "category": "sync",
+        "blocking": "non_blocking",
+        "resources_read": [],
+        "resources_write": [
+          "fence_frame1"
+        ],
+        "sync_point": true,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 14,
+        "op": "WAIT_FENCE",
+        "category": "sync",
+        "blocking": "blocking",
+        "resources_read": [],
+        "resources_write": [
+          "fence_frame1"
+        ],
+        "sync_point": true,
+        "timeout_ms": 5000,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 15,
+        "op": "FREE_BUFFER",
+        "category": "free",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "staging"
+        ],
+        "resources_write": [],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 16,
+        "op": "FREE_BUFFER",
+        "category": "free",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "vbo"
+        ],
+        "resources_write": [],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 17,
+        "op": "DESTROY_FENCE",
+        "category": "free",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "fence_frame0"
+        ],
+        "resources_write": [],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      },
+      {
+        "index": 18,
+        "op": "DESTROY_FENCE",
+        "category": "free",
+        "blocking": "non_blocking",
+        "resources_read": [
+          "fence_frame1"
+        ],
+        "resources_write": [],
+        "sync_point": false,
+        "timeout_ms": null,
+        "queue": null,
+        "arch_hints": [],
+        "metadata": {}
+      }
+    ],
+    "lifetimes": {
+      "vbo": {
+        "resource": "vbo",
+        "alloc_index": 0,
+        "free_index": 16,
+        "map_intervals": [],
+        "exclusive_owner": true
+      },
+      "staging": {
+        "resource": "staging",
+        "alloc_index": 1,
+        "free_index": 15,
+        "map_intervals": [
+          [
+            2,
+            4
+          ]
+        ],
+        "exclusive_owner": true
+      },
+      "fence_frame0": {
+        "resource": "fence_frame0",
+        "alloc_index": 6,
+        "free_index": 17,
+        "map_intervals": [],
+        "exclusive_owner": true
+      },
+      "fence_frame1": {
+        "resource": "fence_frame1",
+        "alloc_index": 9,
+        "free_index": 18,
+        "map_intervals": [],
+        "exclusive_owner": true
+      }
+    },
+    "dependencies": [
+      {
+        "from": 11,
+        "to": 12,
+        "reason": "fence/semaphore signal\u2192wait on 'fence_frame0'",
+        "explicit": true
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "reason": "fence/semaphore signal\u2192wait on 'fence_frame1'",
+        "explicit": true
+      }
+    ]
+  }
+}

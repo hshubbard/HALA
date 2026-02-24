@@ -1,0 +1,112 @@
+{
+  "_comment": "Trace exhibiting CPU/GPU ping-pong serialisation and a large non-freed buffer",
+  "arch": "ampere",
+  "metadata": {
+    "app": "naive_renderer",
+    "frame_count": 3
+  },
+  "calls": [
+    {
+      "op": "ALLOC_BUFFER",
+      "resource": "vbo_main",
+      "size": 67108864,
+      "memory": "GPU_LOCAL",
+      "cpu_visible": false
+    },
+    {
+      "op": "ALLOC_BUFFER",
+      "resource": "staging",
+      "size": 4194304,
+      "memory": "CPU_VISIBLE",
+      "cpu_visible": true
+    },
+    {
+      "op": "MAP_BUFFER",
+      "resource": "staging",
+      "cpu_visible": true
+    },
+    {
+      "op": "COPY_BUFFER",
+      "reads": ["staging"],
+      "writes": ["vbo_main"]
+    },
+    {
+      "op": "UNMAP_BUFFER",
+      "resource": "staging"
+    },
+    {
+      "op": "CREATE_FENCE",
+      "resource": "frame_fence_0"
+    },
+    {
+      "op": "SUBMIT_QUEUE",
+      "queue": "graphics",
+      "writes": ["frame_fence_0"]
+    },
+    {
+      "op": "WAIT_FENCE",
+      "resource": "frame_fence_0",
+      "timeout": "infinite"
+    },
+    {
+      "op": "MAP_BUFFER",
+      "resource": "staging",
+      "cpu_visible": true
+    },
+    {
+      "op": "COPY_BUFFER",
+      "reads": ["staging"],
+      "writes": ["vbo_main"]
+    },
+    {
+      "op": "UNMAP_BUFFER",
+      "resource": "staging"
+    },
+    {
+      "op": "CREATE_FENCE",
+      "resource": "frame_fence_1"
+    },
+    {
+      "op": "SUBMIT_QUEUE",
+      "queue": "graphics",
+      "writes": ["frame_fence_1"]
+    },
+    {
+      "op": "WAIT_FENCE",
+      "resource": "frame_fence_1",
+      "timeout": "infinite"
+    },
+    {
+      "op": "MAP_BUFFER",
+      "resource": "staging",
+      "cpu_visible": true
+    },
+    {
+      "op": "COPY_BUFFER",
+      "reads": ["staging"],
+      "writes": ["vbo_main"]
+    },
+    {
+      "op": "UNMAP_BUFFER",
+      "resource": "staging"
+    },
+    {
+      "op": "CREATE_FENCE",
+      "resource": "frame_fence_2"
+    },
+    {
+      "op": "SUBMIT_QUEUE",
+      "queue": "graphics",
+      "writes": ["frame_fence_2"]
+    },
+    {
+      "op": "WAIT_FENCE",
+      "resource": "frame_fence_2",
+      "timeout": "infinite"
+    },
+    {
+      "op": "FREE_BUFFER",
+      "resource": "staging"
+    }
+  ]
+}

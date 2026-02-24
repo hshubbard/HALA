@@ -1,0 +1,100 @@
+{
+  "_comment": "Well-structured trace — should produce zero or minimal findings",
+  "arch": "ampere",
+  "metadata": {
+    "app": "good_renderer",
+    "description": "Double-buffered, properly synchronised, no leaks"
+  },
+  "calls": [
+    {
+      "op": "ALLOC_BUFFER",
+      "resource": "vbo",
+      "size": 67108864,
+      "memory": "GPU_LOCAL"
+    },
+    {
+      "op": "ALLOC_BUFFER",
+      "resource": "staging",
+      "size": 67108864,
+      "memory": "CPU_VISIBLE",
+      "cpu_visible": true
+    },
+    {
+      "op": "MAP_BUFFER",
+      "resource": "staging"
+    },
+    {
+      "op": "COPY_BUFFER",
+      "reads": ["staging"],
+      "writes": ["vbo"]
+    },
+    {
+      "op": "UNMAP_BUFFER",
+      "resource": "staging"
+    },
+    {
+      "op": "PIPELINE_BARRIER",
+      "reads": ["vbo"],
+      "writes": ["vbo"]
+    },
+    {
+      "op": "CREATE_FENCE",
+      "resource": "fence_frame0"
+    },
+    {
+      "op": "SUBMIT_QUEUE",
+      "queue": "graphics",
+      "reads": ["vbo"],
+      "writes": ["fence_frame0"]
+    },
+    {
+      "op": "COPY_BUFFER",
+      "reads": ["staging"],
+      "writes": ["vbo"]
+    },
+    {
+      "op": "CREATE_FENCE",
+      "resource": "fence_frame1"
+    },
+    {
+      "op": "SUBMIT_QUEUE",
+      "queue": "graphics",
+      "reads": ["vbo"],
+      "writes": ["fence_frame1"]
+    },
+    {
+      "op": "SIGNAL_FENCE",
+      "resource": "fence_frame0"
+    },
+    {
+      "op": "WAIT_FENCE",
+      "resource": "fence_frame0",
+      "timeout": 5000
+    },
+    {
+      "op": "SIGNAL_FENCE",
+      "resource": "fence_frame1"
+    },
+    {
+      "op": "WAIT_FENCE",
+      "resource": "fence_frame1",
+      "timeout": 5000
+    },
+    {
+      "op": "FREE_BUFFER",
+      "resource": "staging"
+    },
+    {
+      "op": "FREE_BUFFER",
+      "resource": "vbo"
+    },
+    {
+      "op": "DESTROY_FENCE",
+      "resource": "fence_frame0"
+    },
+    {
+      "op": "DESTROY_FENCE",
+      "resource": "fence_frame1"
+    }
+  ]
+}

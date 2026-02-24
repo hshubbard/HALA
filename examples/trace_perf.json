@@ -1,0 +1,113 @@
+{
+  "_comment": "Trace with performance issues: small allocs, redundant sync, map churn, blocking readback",
+  "arch": "rdna3",
+  "metadata": {
+    "app": "inefficient_renderer",
+    "description": "Many performance anti-patterns in one trace"
+  },
+  "calls": [
+    {
+      "op": "ALLOC_BUFFER", "resource": "cbuf_0",   "size": 256,    "memory": "CPU_VISIBLE"
+    },
+    {
+      "op": "ALLOC_BUFFER", "resource": "cbuf_1",   "size": 512,    "memory": "CPU_VISIBLE"
+    },
+    {
+      "op": "ALLOC_BUFFER", "resource": "cbuf_2",   "size": 128,    "memory": "CPU_VISIBLE"
+    },
+    {
+      "op": "ALLOC_BUFFER", "resource": "cbuf_3",   "size": 1024,   "memory": "CPU_VISIBLE"
+    },
+    {
+      "op": "ALLOC_BUFFER", "resource": "cbuf_4",   "size": 256,    "memory": "CPU_VISIBLE"
+    },
+    {
+      "op": "ALLOC_BUFFER", "resource": "cbuf_5",   "size": 4096,   "memory": "CPU_VISIBLE"
+    },
+    {
+      "op": "ALLOC_BUFFER", "resource": "tex_data", "size": 8388608, "memory": "GPU_LOCAL"
+    },
+    {
+      "op": "MAP_BUFFER",   "resource": "tex_data"
+    },
+    {
+      "op": "UNMAP_BUFFER", "resource": "tex_data"
+    },
+    {
+      "op": "MAP_BUFFER",   "resource": "tex_data"
+    },
+    {
+      "op": "UNMAP_BUFFER", "resource": "tex_data"
+    },
+    {
+      "op": "MAP_BUFFER",   "resource": "tex_data"
+    },
+    {
+      "op": "UNMAP_BUFFER", "resource": "tex_data"
+    },
+    {
+      "op": "MAP_BUFFER",   "resource": "tex_data"
+    },
+    {
+      "op": "UNMAP_BUFFER", "resource": "tex_data"
+    },
+    {
+      "op": "MAP_BUFFER",   "resource": "tex_data"
+    },
+    {
+      "op": "UNMAP_BUFFER", "resource": "tex_data"
+    },
+    {
+      "op": "CREATE_FENCE", "resource": "fence_a"
+    },
+    {
+      "op": "SUBMIT_QUEUE", "queue": "graphics", "writes": ["fence_a"]
+    },
+    {
+      "op": "READBACK",
+      "blocking": "blocking",
+      "reads": ["tex_data"]
+    },
+    {
+      "op": "CREATE_FENCE", "resource": "fence_b"
+    },
+    {
+      "op": "SUBMIT_QUEUE", "queue": "graphics", "writes": ["fence_b"]
+    },
+    {
+      "op": "READBACK",
+      "blocking": "blocking",
+      "reads": ["tex_data"]
+    },
+    {
+      "op": "SIGNAL_FENCE", "resource": "fence_a"
+    },
+    {
+      "op": "WAIT_FENCE",   "resource": "fence_a", "timeout": 5000
+    },
+    {
+      "op": "WAIT_FENCE",   "resource": "fence_a", "timeout": 5000
+    },
+    {
+      "op": "FREE_BUFFER",  "resource": "cbuf_0"
+    },
+    {
+      "op": "FREE_BUFFER",  "resource": "cbuf_1"
+    },
+    {
+      "op": "FREE_BUFFER",  "resource": "cbuf_2"
+    },
+    {
+      "op": "FREE_BUFFER",  "resource": "cbuf_3"
+    },
+    {
+      "op": "FREE_BUFFER",  "resource": "cbuf_4"
+    },
+    {
+      "op": "FREE_BUFFER",  "resource": "cbuf_5"
+    },
+    {
+      "op": "FREE_BUFFER",  "resource": "tex_data"
+    }
+  ]
+}
