@@ -3,7 +3,7 @@
 A static analysis tool for Hardware Abstraction Layer (HAL) and GPU driver
 call sequences. Parses traces, lifts them into a compiler-style IR, and runs
 independent analysis passes to detect resource contention, portability
-fragility, and performance inefficiencies — without executing any workloads.
+fragility, and performance inefficiencies- without executing any workloads.
 
 ---
 
