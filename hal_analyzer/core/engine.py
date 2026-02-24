@@ -35,6 +35,7 @@ from .ir import IRTrace
 from .parser import HALParser
 from .passes import (
     AnalysisPass,
+    BlockingCpuHotpathPass,
     Finding,
     FindingCategory,
     FragilityPass,
@@ -52,6 +53,7 @@ DEFAULT_PASSES: List[Type[AnalysisPass]] = [
     ResourceContentionPass,
     FragilityPass,
     PerformancePass,
+    BlockingCpuHotpathPass,
 ]
 
 

@@ -293,16 +293,43 @@ class HALAnalyzerApp(tk.Tk):
         setattr(self, f"_ftree_{category}", tree)
 
     def _build_lifetime_panel(self) -> None:
-        frame = tk.LabelFrame(self, text=" Resource Lifetimes ", bg=PANEL_BG,
-                               fg=DARK_FG, font=("Segoe UI Semibold", 9),
+        frame = tk.LabelFrame(self, text=" Resource Lifetimes ",
+                               bg=PANEL_BG, fg=DARK_FG, font=("Segoe UI Semibold", 9),
                                bd=1, relief=tk.GROOVE)
-        frame.pack(fill=tk.BOTH, expand=False, padx=4, pady=(0, 4))
+        frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
 
-        self._lifetime_canvas = tk.Canvas(frame, height=120, bg=DARK_BG, highlightthickness=0)
-        hsb = tk.Scrollbar(frame, orient=tk.HORIZONTAL, command=self._lifetime_canvas.xview)
-        self._lifetime_canvas.configure(xscrollcommand=hsb.set)
-        self._lifetime_canvas.pack(fill=tk.BOTH, expand=True)
-        hsb.pack(fill=tk.X)
+        # Canvas + both scrollbars in a grid so they share the corner
+        canvas_frame = tk.Frame(frame, bg=DARK_BG)
+        canvas_frame.pack(fill=tk.BOTH, expand=True)
+        canvas_frame.rowconfigure(0, weight=1)
+        canvas_frame.columnconfigure(0, weight=1)
+
+        self._lifetime_canvas = tk.Canvas(canvas_frame, bg=DARK_BG, highlightthickness=0)
+        vsb = tk.Scrollbar(canvas_frame, orient=tk.VERTICAL,   command=self._lifetime_canvas.yview)
+        hsb = tk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self._lifetime_canvas.xview)
+        self._lifetime_canvas.configure(
+            xscrollcommand=hsb.set,
+            yscrollcommand=vsb.set,
+        )
+        self._lifetime_canvas.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+
+        # Mouse-wheel vertical scroll
+        self._lifetime_canvas.bind("<MouseWheel>", self._on_lifetime_scroll)
+
+        # Cursor line — drawn on top, updated when user selects a node
+        self._cursor_line: Optional[int] = None
+
+        # Tooltip label
+        self._lt_tip_var = tk.StringVar()
+        self._lt_tip = tk.Label(frame, textvariable=self._lt_tip_var,
+                                 bg="#ffffe0", fg="#000000", font=("Segoe UI", 8),
+                                 relief=tk.SOLID, borderwidth=1, padx=4)
+        # Not packed — placed via place() on hover
+
+        self._lifetime_canvas.bind("<Motion>",  self._on_lifetime_hover)
+        self._lifetime_canvas.bind("<Leave>",   self._on_lifetime_leave)
 
     def _build_status_bar(self) -> None:
         self._status_var = tk.StringVar(value="Ready  |  Open a trace JSON to analyze, or load a saved result")
@@ -461,42 +488,231 @@ class HALAnalyzerApp(tk.Tk):
                 tree.insert("", tk.END, values=(sev.upper(), title, nodes),
                              tags=[f"sev_{sev}"])
 
+    # Layout constants shared between populate and cursor/hover helpers
+    _LT_PX          = 14    # pixels per node slot
+    _LT_LEFT_MARGIN = 130   # width of resource name label column
+    _LT_ROW_H       = 18
+    _LT_ROW_PAD     = 4
+    _LT_AXIS_H      = 22    # height of the X-axis ruler at the bottom
+
     def _populate_lifetime_timeline(self) -> None:
         canvas = self._lifetime_canvas
         canvas.delete("all")
+        self._cursor_line = None
+
         if not self._model or not self._model.lifetimes:
+            canvas.create_text(10, 20, anchor="w", text="No resource lifetime data.",
+                                fill="#666666", font=("Segoe UI", 9))
             return
 
-        n_nodes     = max(len(self._model.nodes), 1)
-        PX          = 14
-        ROW_H       = 20
-        ROW_PAD     = 4
-        LEFT_MARGIN = 120
+        PX   = self._LT_PX
+        LM   = self._LT_LEFT_MARGIN
+        RH   = self._LT_ROW_H
+        RP   = self._LT_ROW_PAD
+        AH   = self._LT_AXIS_H
+        n    = max(len(self._model.nodes), 1)
+
+        # ── Legend strip (pinned at top of canvas) ─────────────────────
+        LEGEND_H = 20
+        legend_items = [
+            ("buffer",    "Buffer"),
+            ("texture",   "Texture"),
+            ("fence",     "Fence"),
+            ("semaphore", "Semaphore"),
+            ("queue",     "Queue"),
+            ("pipeline",  "Pipeline"),
+            ("descriptor","Descriptor"),
+            ("unknown",   "Other"),
+        ]
+        lx = 4
+        canvas.create_text(lx, LEGEND_H // 2, anchor="w",
+                             text="KIND:", fill="#888888", font=("Segoe UI", 7, "bold"))
+        lx += 38
+        for kind, label in legend_items:
+            col = RES_KIND_COLOURS.get(kind, "#888888")
+            canvas.create_rectangle(lx, 5, lx + 10, 15, fill=col, outline="")
+            lx += 14
+            canvas.create_text(lx, LEGEND_H // 2, anchor="w",
+                                 text=label, fill="#aaaaaa", font=("Segoe UI", 7))
+            lx += len(label) * 5 + 10
+
+        # Mapped / never-freed legend entries
+        canvas.create_rectangle(lx, 5, lx + 10, 15, fill="#ffffff",
+                                  outline="", stipple="gray50")
+        lx += 14
+        canvas.create_text(lx, LEGEND_H // 2, anchor="w",
+                             text="CPU mapped", fill="#aaaaaa", font=("Segoe UI", 7))
+        lx += 74
+        canvas.create_rectangle(lx, 5, lx + 10, 15, fill="#FF4444", outline="")
+        lx += 14
+        canvas.create_text(lx, LEGEND_H // 2, anchor="w",
+                             text="Never freed", fill="#aaaaaa", font=("Segoe UI", 7))
+
+        # Separator line under legend
+        canvas.create_line(0, LEGEND_H, 9999, LEGEND_H, fill="#333333")
+
+        TOP_OFFSET = LEGEND_H + 4   # rows start below the legend
+
+        # ── Rows: one per resource ─────────────────────────────────────
+        # Store row metadata for hover hit-testing
+        self._lt_rows: list = []   # list of (y0, y1, name, lt_dict, size_b)
 
         row = 0
         for name, lt in self._model.lifetimes.items():
-            kind   = self._model.resources.get(name, {}).get("kind", "unknown")
+            res    = self._model.resources.get(name, {})
+            kind   = res.get("kind", "unknown")
             colour = RES_KIND_COLOURS.get(kind, "#888888")
-            y0     = row * (ROW_H + ROW_PAD) + 4
-            y1     = y0 + ROW_H
+            size_b = res.get("size_bytes", 0)
+            y0     = TOP_OFFSET + row * (RH + RP)
+            y1     = y0 + RH
 
-            canvas.create_text(2, (y0 + y1) / 2, anchor="w", text=name[:16],
-                                 fill=DARK_FG, font=("Consolas", 8))
+            # Alternating row background for readability
+            row_bg = "#242424" if row % 2 == 0 else "#1e1e1e"
+            canvas.create_rectangle(0, y0, 9999, y1, fill=row_bg, outline="")
 
-            alloc_x = LEFT_MARGIN + lt.get("alloc_index", 0) * PX
-            free_x  = LEFT_MARGIN + (lt.get("free_index") or n_nodes) * PX
-            canvas.create_rectangle(alloc_x, y0, free_x, y1, fill=colour, outline="")
+            # Kind chip (colour swatch) in left margin
+            canvas.create_rectangle(4, y0 + 3, 14, y1 - 3,
+                                      fill=colour, outline="")
 
+            # Resource name label (truncated, left-aligned after swatch)
+            canvas.create_text(18, (y0 + y1) / 2, anchor="w",
+                                 text=name[:20], fill=DARK_FG, font=("Consolas", 8))
+
+            # Live-range bar
+            alloc_x = LM + lt.get("alloc_index", 0) * PX
+            free_i  = lt.get("free_index")
+            free_x  = LM + (free_i if free_i is not None else n) * PX
+            canvas.create_rectangle(alloc_x, y0 + 2, free_x, y1 - 2,
+                                      fill=colour, outline="#444444")
+
+            # "Never freed" marker — red right-edge stripe
+            if free_i is None:
+                canvas.create_rectangle(free_x - 4, y0 + 2, free_x, y1 - 2,
+                                          fill="#FF4444", outline="")
+
+            # CPU-mapped intervals (white stipple overlay)
             for m_start, m_end in lt.get("map_intervals", []):
-                mx0 = LEFT_MARGIN + m_start * PX
-                mx1 = LEFT_MARGIN + (m_end or n_nodes) * PX
+                mx0 = LM + m_start * PX
+                mx1 = LM + (m_end if m_end is not None else n) * PX
                 canvas.create_rectangle(mx0, y0 + 4, mx1, y1 - 4,
                                           fill="#ffffff", outline="", stipple="gray50")
+
+            self._lt_rows.append((y0, y1, name, lt, size_b))
             row += 1
 
-        total_w = LEFT_MARGIN + n_nodes * PX + 20
-        total_h = row * (ROW_H + ROW_PAD) + 10
+        # ── X-axis ruler ───────────────────────────────────────────────
+        rows_h  = TOP_OFFSET + row * (RH + RP)
+        axis_y  = rows_h + 2
+        total_w = LM + n * PX + 20
+        total_h = axis_y + AH
+
+        canvas.create_line(LM, axis_y, LM + n * PX, axis_y, fill="#555555")
+
+        # Adaptive tick spacing: aim for ~20 ticks
+        step = max(1, n // 20)
+        step = 5 * max(1, (step + 4) // 5)  # round up to nearest multiple of 5
+        for i in range(0, n + 1, step):
+            x = LM + i * PX
+            canvas.create_line(x, axis_y, x, axis_y + 4, fill="#777777")
+            canvas.create_text(x, axis_y + 6, anchor="n", text=str(i),
+                                 fill="#888888", font=("Consolas", 7))
+
+        # Axis label
+        canvas.create_text(LM + (n * PX) // 2, axis_y + 14, anchor="n",
+                             text="Node index  (position in call sequence)",
+                             fill="#666666", font=("Segoe UI", 7))
+
+        # Divider between label column and bar area
+        canvas.create_line(LM, TOP_OFFSET, LM, axis_y, fill="#333333")
+
+        # Left-column header
+        canvas.create_text(LM // 2, TOP_OFFSET - 2, anchor="s",
+                             text="Resource", fill="#666666", font=("Segoe UI", 7))
+
         canvas.configure(scrollregion=(0, 0, total_w, total_h))
+
+    def _lifetime_node_at_x(self, canvas_x: int) -> Optional[int]:
+        """Return the node index corresponding to a canvas X coordinate."""
+        lm = self._LT_LEFT_MARGIN
+        if canvas_x < lm:
+            return None
+        idx = (canvas_x - lm) // self._LT_PX
+        if not self._model:
+            return None
+        return min(idx, len(self._model.nodes) - 1)
+
+    def _on_lifetime_hover(self, event: tk.Event) -> None:
+        """Show a tooltip describing the resource and node under the cursor."""
+        if not self._model:
+            return
+        cx = self._lifetime_canvas.canvasx(event.x)
+        cy = self._lifetime_canvas.canvasy(event.y)
+
+        node_idx = self._lifetime_node_at_x(int(cx))
+
+        hit_name: Optional[str] = None
+        hit_lt = None
+        hit_size = 0
+        for (y0, y1, name, lt, size_b) in getattr(self, "_lt_rows", []):
+            if y0 <= cy <= y1:
+                hit_name = name
+                hit_lt   = lt
+                hit_size = size_b
+                break
+
+        if hit_name is None and node_idx is None:
+            self._lt_tip.place_forget()
+            return
+
+        parts = []
+        if hit_name:
+            res  = self._model.resources.get(hit_name, {})
+            kind = res.get("kind", "unknown")
+            mem  = res.get("memory", "")
+            ai   = hit_lt.get("alloc_index", "?")
+            fi   = hit_lt.get("free_index")
+            maps = len(hit_lt.get("map_intervals", []))
+            size_s = f"{hit_size // 1024} KiB" if hit_size >= 1024 else (f"{hit_size} B" if hit_size else "")
+            fi_s = str(fi) if fi is not None else "never freed"
+            parts.append(f"{hit_name}  [{kind}]  {mem}  {size_s}")
+            parts.append(f"live: node {ai} -> {fi_s}  |  mapped {maps}x")
+
+        if node_idx is not None and self._model.nodes:
+            nodes = self._model.nodes
+            if 0 <= node_idx < len(nodes):
+                nd = nodes[node_idx]
+                op = nd.get("op", "?")
+                parts.append(f"node {node_idx}: {op}")
+
+        if parts:
+            self._lt_tip_var.set("  |  ".join(parts))
+            self._lt_tip.place(x=event.x + 12, y=event.y - 20)
+        else:
+            self._lt_tip.place_forget()
+
+    def _on_lifetime_scroll(self, event: tk.Event) -> None:
+        """Scroll the lifetime canvas vertically with the mouse wheel."""
+        self._lifetime_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _on_lifetime_leave(self, _event: tk.Event) -> None:
+        self._lt_tip.place_forget()
+
+    def _draw_lifetime_cursor(self, node_idx: int) -> None:
+        """Draw a vertical cursor line on the timeline at the given node index."""
+        canvas = self._lifetime_canvas
+        if self._cursor_line is not None:
+            canvas.delete(self._cursor_line)
+            self._cursor_line = None
+        if not self._model or not self._model.lifetimes:
+            return
+        x = self._LT_LEFT_MARGIN + node_idx * self._LT_PX
+        LEGEND_H  = 20
+        TOP_OFFSET = LEGEND_H + 4
+        n_rows = len(self._lt_rows) if hasattr(self, "_lt_rows") else 1
+        total_h = TOP_OFFSET + n_rows * (self._LT_ROW_H + self._LT_ROW_PAD) + self._LT_AXIS_H + 10
+        self._cursor_line = canvas.create_line(
+            x, TOP_OFFSET, x, total_h, fill="#ffffff", dash=(3, 3), width=1
+        )
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -507,6 +723,8 @@ class HALAnalyzerApp(tk.Tk):
         if not sel or not self._model:
             return
         node_idx = int(sel[0])
+        # Sync cursor on lifetime timeline
+        self._draw_lifetime_cursor(node_idx)
         findings = self._model.findings_for_node(node_idx)
         if findings:
             self._show_finding_detail(findings[0])

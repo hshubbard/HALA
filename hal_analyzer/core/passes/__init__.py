@@ -3,6 +3,7 @@ from .base import AnalysisPass, Finding, Severity, FindingCategory
 from .resource_contention import ResourceContentionPass
 from .fragility import FragilityPass
 from .performance import PerformancePass
+from .blocking_cpu_hotpath import BlockingCpuHotpathPass
 
 __all__ = [
     "AnalysisPass",
@@ -12,4 +13,5 @@ __all__ = [
     "ResourceContentionPass",
     "FragilityPass",
     "PerformancePass",
+    "BlockingCpuHotpathPass",
 ]

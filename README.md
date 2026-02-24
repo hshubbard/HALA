@@ -9,7 +9,13 @@ fragility, and performance inefficiencies- without executing any workloads.
 
 ## Version History
 
-### v1.0 (current)
+### v1.1 (current)
+- **New pass: BlockingCpuHotpathPass (PE-06)**: detects blocking CPU access on CPU_VISIBLE resources within 3 nodes of a SUBMIT_QUEUE, flagging GPU hot-path stalls and tiled-memory pipeline flushes
+- **15 checks across 4 passes**: RC-01..04, FR-01..05, PE-01..06
+- **GUI lifetime panel**: vertically scrollable canvas with mouse-wheel support; inline colour legend (kind chips + CPU-mapped + never-freed); alternating row backgrounds; expands to fill available height
+- Minor reporting improvements: finding metadata now includes `gap_ops` for proximity-based checks
+
+### v1.0
 - **HAL Call Parser**: canonical IR builder with op-table, vendor alias resolution (Vulkan, D3D12, CUDA), and automatic resource lifetime tracking
 - **Three analysis passes**: resource contention, fragility / undefined behaviour, performance inefficiency
 - **14 checks across 3 passes**: RC-01..04, FR-01..05, PE-01..05
@@ -235,6 +241,11 @@ PE-04: Blocking readback in hot path
 PE-05: Staging buffer persistently mapped across submission
   IF a CPU_VISIBLE resource is mapped and not unmapped before a SUBMIT_QUEUE
   -> severity: LOW
+
+PE-06: Blocking CPU access in GPU hot path
+  IF a BLOCKING op touches a CPU_VISIBLE resource
+  AND it occurs within 3 nodes of a SUBMIT_QUEUE
+  -> severity: HIGH
 ```
 
 ---
